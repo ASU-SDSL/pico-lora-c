@@ -4,6 +4,7 @@
 // include the hardware abstraction layer
 #include "RadioLibPicoHal.h"
 #include "hardware/spi.h" // included for getting spi_default
+#include "pico/stdlib.h"
 
 // create a new instance of the HAL class
 // use SPI channel 1, because on Waveshare LoRaWAN Hat,
@@ -20,6 +21,9 @@ RFM98 radio = new Module(hal, 5, 14, 13, RADIOLIB_NC);
 
 // the entry point for the program
 int main(int argc, char** argv) {
+
+  stdio_init_all();
+
   // initialize just like with Arduino
   printf("[SX1261] Initializing ... ");
   int state = radio.begin();
