@@ -1,13 +1,13 @@
 #include <RadioLib.h>
 #include <stdio.h>
 #include "pico/stdlib.h"
-#include "hardware/adc.h"
+//#include "hardware/adc.h"
 #include "hardware/spi.h"
 
 class PiPicoHal : public RadioLibHal {
 public:
     PiPicoHal(spi_inst_t *spi, uint32_t spi_speed = 2000000)
-        : RadioLibHal(0, 1, 0, 1, 0, 1),  
+        : RadioLibHal(0, 1, 0, 1, 0, 1),
           _spi(spi),
           _spi_speed(spi_speed) {
     }
@@ -60,8 +60,7 @@ public:
         }
 
         // Pulled from the arduino-pico core
-
-        uint32_t events;
+        /*uint32_t events;
         switch (mode) {
         case LOW:     events = 1; break;
         case HIGH:    events = 2; break;
@@ -69,10 +68,11 @@ public:
         case RISING:  events = 8; break;
         case CHANGE:  events = 4 | 8; break;
         default:      return;  // ERROR
-        }
+        }*/
 
+        // @TODO - note that this mode may not match! But the LOW HIGH FALLING... enum is burried somewhere in the arduino core and I didn't find it
         // Setting the interrupt with the Raspberry Pi Pico SDK
-        gpio_set_irq_enabled_with_callback(interruptNum, events, true, (gpio_irq_callback_t)interruptCb);
+        gpio_set_irq_enabled_with_callback(interruptNum, mode, true, (gpio_irq_callback_t)interruptCb);
     }
 
     void detachInterrupt(uint32_t interruptNum) override {
@@ -81,7 +81,7 @@ public:
         }
 
         // Disabling the interrupt with the Raspberry Pi Pico SDK
-        gpio_set_irq_enabled(pin, 0x0f, false); // pulled from arduino-pico core wiring_private.cpp
+        gpio_set_irq_enabled(interruptNum, 0x0f, false); // pulled from arduino-pico core wiring_private.cpp
     }
 
     void delay(unsigned long ms) override {
@@ -106,7 +106,6 @@ public:
         uint64_t abort = start + timeout;
 
         if (pin > 29) {
-            DEBUGCORE("ERROR: Illegal pin in pulseIn (%d)\n", pin);
             return 0;
         }
 

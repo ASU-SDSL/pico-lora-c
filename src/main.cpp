@@ -3,11 +3,12 @@
 
 // include the hardware abstraction layer
 #include "RadioLibPicoHal.h"
+#include "hardware/spi.h" // included for getting spi_default
 
 // create a new instance of the HAL class
 // use SPI channel 1, because on Waveshare LoRaWAN Hat,
 // the SX1261 CS is connected to CE1
-PiHal* hal = new PiHal(1);
+PiPicoHal* hal = new PiPicoHal(spi_default);
 
 // now we can create the radio module
 // pinout corresponds to the Waveshare LoRaWAN Hat
