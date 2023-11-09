@@ -12,11 +12,11 @@ PiPicoHal* hal = new PiPicoHal(spi_default);
 
 // now we can create the radio module
 // pinout corresponds to the Waveshare LoRaWAN Hat
-// NSS pin:   7
-// DIO1 pin:  17
-// NRST pin:  22
+// NSS pin:   5
+// DIO1 pin:  14
+// NRST pin:  13
 // BUSY pin:  not connected
-RFM98 radio = new Module(hal, 7, 17, 22, RADIOLIB_NC);
+RFM98 radio = new Module(hal, 5, 14, 13, RADIOLIB_NC);
 
 // the entry point for the program
 int main(int argc, char** argv) {
