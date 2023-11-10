@@ -21,7 +21,7 @@ pico_sdk_init()
 # Add subdirectory
 add_subdirectory(src)
 
-add_subdirectory(${CMAKE_SOURCE_DIR}/lib/RadioLib)
+#add_subdirectory(${CMAKE_SOURCE_DIR}/lib/RadioLib)
 
 add_compile_options(-Wall
         -Wno-format          # int != int32_t as far as the compiler is concerned because gcc has int32_t as long int
