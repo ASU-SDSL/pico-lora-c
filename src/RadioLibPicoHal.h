@@ -1,156 +1,143 @@
+#ifndef PICO_HAL_H
+#define PICO_HAL_H
+
+// include RadioLib
 #include <RadioLib.h>
-#include <stdio.h>
-#include "pico/stdlib.h"
-//#include "hardware/adc.h"
+
+// include the necessary Pico libraries
+#include <pico/stdlib.h>
 #include "hardware/spi.h"
+#include "hardware/timer.h"
 
-class PiPicoHal : public RadioLibHal {
+// create a new Raspberry Pi Pico hardware abstraction 
+// layer using the Pico SDK
+// the HAL must inherit from the base RadioLibHal class
+// and implement all of its virtual methods
+class PicoHal : public RadioLibHal {
 public:
-    PiPicoHal(spi_inst_t *spi, uint32_t spi_speed = 2000000)
-        : RadioLibHal(0, 1, 0, 1, 0, 1),
-          _spi(spi),
-          _spi_speed(spi_speed) {
+  PicoHal(spi_inst_t *spiChannel, uint32_t misoPin, uint32_t mosiPin, uint32_t sckPin, uint32_t spiSpeed = 500 * 1000)
+    : RadioLibHal(GPIO_IN, GPIO_OUT, 0, 1, GPIO_IRQ_EDGE_RISE, GPIO_IRQ_EDGE_FALL),
+    _spiChannel(spiChannel),
+    _spiSpeed(spiSpeed),
+    _misoPin(misoPin),
+    _mosiPin(mosiPin),
+    _sckPin(sckPin) {
     }
 
-    void init() override {
-        stdio_init_all();
+  void init() override {
+    stdio_init_all();
+    spiBegin();
+  }
 
-        spiBegin();
+  void term() override {
+    spiEnd();
+  }
 
-        // any other enable steps we need to do?
-        //gpio_init(18);
-        //gpio_set_dir(18, GPIO_OUT);
-        //gpio_put(18, 1);
+  // GPIO-related methods (pinMode, digitalWrite etc.) should check
+  // RADIOLIB_NC as an alias for non-connected pins
+  void pinMode(uint32_t pin, uint32_t mode) override {
+    if (pin == RADIOLIB_NC) {
+      return;
     }
 
-    void term() override {
-        spiEnd();
+    gpio_init(pin);
+    gpio_set_dir(pin, mode);
+  }
 
-        //gpio_init(18);
-        //gpio_set_dir(18, GPIO_OUT);
-        //gpio_put(18, 0);
-
+  void digitalWrite(uint32_t pin, uint32_t value) override {
+    if (pin == RADIOLIB_NC) {
+      return;
     }
 
-    void pinMode(uint32_t pin, uint32_t mode) override {
-        if (pin == RADIOLIB_NC) {
-            return;
-        }
-        gpio_init(pin);
-        gpio_set_dir(pin, mode);
+    gpio_put(pin, (bool)value);
+  }
+
+  uint32_t digitalRead(uint32_t pin) override {
+    if (pin == RADIOLIB_NC) {
+      return 0;
     }
 
-    void digitalWrite(uint32_t pin, uint32_t value) override {
-        if (pin == RADIOLIB_NC) {
-            return;
-        }
-        gpio_put(pin, value);
+    return gpio_get(pin);
+  }
+
+  void attachInterrupt(uint32_t interruptNum, void (*interruptCb)(void), uint32_t mode) override {
+    if (interruptNum == RADIOLIB_NC) {
+      return;
     }
 
-    uint32_t digitalRead(uint32_t pin) override {
-        if (pin == RADIOLIB_NC) {
-            return 0;
-        }
-        return gpio_get(pin);
-    }
-    
-    void attachInterrupt(uint32_t interruptNum, void (*interruptCb)(void), uint32_t mode) override {
-        if (interruptNum == RADIOLIB_NC) {
-            return;
-        }
+    gpio_set_irq_enabled_with_callback(interruptNum, GPIO_IRQ_EDGE_RISE | GPIO_IRQ_EDGE_FALL, true, (gpio_irq_callback_t)interruptCb);
+  }
 
-        // Pulled from the arduino-pico core
-        /*uint32_t events;
-        switch (mode) {
-        case LOW:     events = 1; break;
-        case HIGH:    events = 2; break;
-        case FALLING: events = 4; break;
-        case RISING:  events = 8; break;
-        case CHANGE:  events = 4 | 8; break;
-        default:      return;  // ERROR
-        }*/
-
-        // @TODO - note that this mode may not match! But the LOW HIGH FALLING... enum is burried somewhere in the arduino core and I didn't find it
-        // Setting the interrupt with the Raspberry Pi Pico SDK
-        gpio_set_irq_enabled_with_callback(interruptNum, mode, true, (gpio_irq_callback_t)interruptCb);
+  void detachInterrupt(uint32_t interruptNum) override {
+    if (interruptNum == RADIOLIB_NC) {
+      return;
     }
 
-    void detachInterrupt(uint32_t interruptNum) override {
-        if (interruptNum == RADIOLIB_NC) {
-            return;
-        }
+    gpio_set_irq_enabled_with_callback(interruptNum, GPIO_IRQ_EDGE_RISE | GPIO_IRQ_EDGE_FALL, false, NULL);
+  }
 
-        // Disabling the interrupt with the Raspberry Pi Pico SDK
-        gpio_set_irq_enabled(interruptNum, 0x0f, false); // pulled from arduino-pico core wiring_private.cpp
+  void delay(unsigned long ms) override {
+    sleep_ms(ms);
+  }
+
+  void delayMicroseconds(unsigned long us) override {
+    sleep_us(us);
+  }
+
+  unsigned long millis() override {
+    return to_ms_since_boot(get_absolute_time());
+  }
+
+  unsigned long micros() override {
+    return to_us_since_boot(get_absolute_time());
+  }
+
+  long pulseIn(uint32_t pin, uint32_t state, unsigned long timeout) override {
+    if (pin == RADIOLIB_NC) {
+      return 0;
     }
 
-    void delay(unsigned long ms) override {
-        sleep_ms(ms);
+    this->pinMode(pin, GPIO_IN);
+    uint32_t start = this->micros();
+    uint32_t curtick = this->micros();
+
+    while (this->digitalRead(pin) == state) {
+      if ((this->micros() - curtick) > timeout) {
+        return 0;
+      }
     }
 
-    void delayMicroseconds(unsigned long us) override {
-        sleep_us(us);
-    }
+    return (this->micros() - start);
+  }
 
-    unsigned long millis() override {
-        return to_ms_since_boot(get_absolute_time());
-    }
+  void spiBegin() {
+    spi_init(_spiChannel, _spiSpeed);
+    spi_set_format(_spiChannel, 8, SPI_CPOL_0, SPI_CPHA_0, SPI_MSB_FIRST);
 
-    unsigned long micros() override {
-        return to_us_since_boot(get_absolute_time()) / 1000;
-    }
+    gpio_set_function(_sckPin, GPIO_FUNC_SPI);
+    gpio_set_function(_mosiPin, GPIO_FUNC_SPI);
+    gpio_set_function(_misoPin, GPIO_FUNC_SPI);
+  }
 
-    long pulseIn(uint32_t pin, uint32_t state, unsigned long timeout) override {
-        // taken from wiring_pulse.cpp from arduino-pico
-        uint64_t start = time_us_64();
-        uint64_t abort = start + timeout;
+  void spiBeginTransaction() {}
 
-        if (pin > 29) {
-            return 0;
-        }
+  void spiTransfer(uint8_t *out, size_t len, uint8_t *in) {
+    spi_write_read_blocking(_spiChannel, out, in, len);
+  }
 
-        // Wait for deassert, if needed
-        while ((!!gpio_get(pin) != !state) && (time_us_64() < abort));
-        if (time_us_64() >= abort) {
-            return 0;
-        }
+  void spiEndTransaction() {}
 
-        // Wait for assert
-        while ((!!gpio_get(pin) != !!state) && (time_us_64() < abort));
-        uint64_t begin = time_us_64();
-        if (begin >= abort) {
-            return 0;
-        }
-
-        // Wait for deassert
-        while ((!!gpio_get(pin) != !state) && (time_us_64() < abort));
-        uint64_t end = time_us_64();
-        if (end >= abort) {
-            return 0;
-        }
-
-        return end - begin;
-    }
-
-    void spiBegin() {
-        spi_init(_spi, _spi_speed);
-        spi_set_format(_spi, 8, SPI_CPOL_0, SPI_CPHA_0, SPI_MSB_FIRST);
-    }
-
-    void spiBeginTransaction() {}
-    void spiEndTransaction() {}
-
-    void spiTransfer(uint8_t *out, size_t len, uint8_t *in) {
-        spi_write_blocking(_spi, out, len);
-        spi_read_blocking(_spi, 0, in, len);
-    }
-
-    void spiEnd() {
-        spi_deinit(_spi);
-    }
+  void spiEnd() {
+    spi_deinit(_spiChannel);
+  }
 
 private:
-    const uint32_t _spi_speed;
-    spi_inst_t *_spi;
-    int _spiHandle = -1;
+  // the HAL can contain any additional private members
+  spi_inst_t *_spiChannel;
+  uint32_t _spiSpeed;
+  uint32_t _misoPin;
+  uint32_t _mosiPin;
+  uint32_t _sckPin;
 };
+
+#endif
